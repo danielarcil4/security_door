@@ -1,0 +1,13 @@
+.program keypad_trigger
+; inputs: 4 columns (in_base)
+; target: generate an interrupt if there is a one
+set pins 15 [3]
+
+.wrap_target
+wait_for_press:
+    in pins 4 [5]          ; read columns
+    mov x, isr             ; save lectures in x
+    jmp !x wait_for_press  ; if x == 0, any button press -> wait
+    push noblock
+    irq 0                   ; generate an interrupt IRQ0 to CPU
+.wrap
