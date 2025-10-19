@@ -3,7 +3,10 @@
 ; pin 0 control buzzer
 ; X contains delay cycles (for half of the period)
 .wrap_target
-wait 1 irq 0
+
+pull
+mov x OSR
+mov y x
 loop:
     set pins, 1
 delay_high:
