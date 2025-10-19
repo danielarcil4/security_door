@@ -35,9 +35,9 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(security_door main.c Src/matrix_keyboard.c)
+add_executable(security_door main.c Src/matrix_keyboard.c Src/buzzer.c)
 
-pico_generate_pio_header(security_door ${CMAKE_CURRENT_LIST_DIR}/matrix_keyboard.pio)
+pico_generate_pio_header(security_door ${CMAKE_CURRENT_LIST_DIR}/matrix_keyboard.pio ${CMAKE_CURRENT_LIST_DIR}/buzzer_square.pio)
 
 pico_set_program_name(security_door "security_door")
 pico_set_program_version(security_door "0.1")
@@ -49,7 +49,9 @@ pico_enable_stdio_usb(security_door 1)
 # Add the standard library to the build
 target_link_libraries(security_door
         pico_stdlib
-        hardware_pio)
+        hardware_pio
+        hardware_pwm
+        )
 
 # Add the standard include files to the build
 target_include_directories(security_door PRIVATE

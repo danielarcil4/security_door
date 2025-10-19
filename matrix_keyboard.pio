@@ -1,13 +1,21 @@
 .program keypad_trigger
 ; inputs: 4 columns (in_base)
 ; target: generate an interrupt if there is a one
-set pins 15 [3]
+set pins 15
 
 .wrap_target
-wait_for_press:
-    in pins 4 [5]          ; read columns
-    mov x, isr             ; save lectures in x
-    jmp !x wait_for_press  ; if x == 0, any button press -> wait
-    push noblock
-    irq 0                   ; generate an interrupt IRQ0 to CPU
+start:
+    set pins 0b0001 [31]  ; set 0001 on the 4 output pins (activate first row) and wait for the signal to stabilize
+    in pins 4        ; shift the input pins into the ISR
+    set pins 0b0010 [31]  ; set 0010 on the 4 output pins (activate second row) and wait for the signal to stabilize
+    in pins 4        ; shift the input pins into the ISR
+    set pins 0b0100 [31]  ; set 0100 on the 4 output pins (activate third row) and wait for the signal to stabilize
+    in pins 4        ; shift the input pins into the ISR
+    set pins 0b1000 [31]  ; set 1000 on the 4 output pins (activate fourth row) and wait for the signal to stabilize
+    in pins 4        ; shift the input pins into the ISR
+    mov x ISR        ; copy the ISR into the x scratch register
+    jmp !x start     ; if the x contains 0, no key was pressed, start over
+    push noblock     ; a key was pressed, push the ISR into the RX FIFO
+    irq wait 0       ; generate an interrupt IRQ0 to CPU
+    jmp start
 .wrap

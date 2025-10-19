@@ -1,0 +1,15 @@
+.program buzzer_square
+
+; pin 0 control buzzer
+; X contains delay cycles (for half of the period)
+.wrap_target
+wait 1 irq 0
+loop:
+    set pins, 1
+delay_high:
+    jmp x-- delay_high
+    set pins, 0
+delay_low:
+    jmp y-- delay_low
+    jmp loop
+.wrap
