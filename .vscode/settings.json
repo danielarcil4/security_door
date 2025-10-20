@@ -41,6 +41,7 @@
         "stdbool.h": "c",
         "cstdint": "c",
         "pwm.h": "c",
-        "pio.h": "c"
+        "pio.h": "c",
+        "stdlib.h": "c"
     }
 }

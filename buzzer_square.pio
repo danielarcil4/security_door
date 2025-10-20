@@ -15,4 +15,7 @@ delay_high:
 delay_low:
     jmp y-- delay_low
     jmp loop
+make_silence:
+    jmp make_silence
+
 .wrap

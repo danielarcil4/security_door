@@ -15,11 +15,18 @@
 #define BASE_IN 6             ///< Starting pin for input pins
 #define OUTPUT_DIR 1          ///< Set pin direction to output
 #define MAX_PASSWORD_LENGTH 4 ///< Maximum length of the password
-#define DEBOUNCE_DELAY  500   ///< Debounce delay in milliseconds
+#define DEBOUNCE_DELAY  250   ///< Debounce delay in milliseconds
+
+typedef struct {
+    uint8_t row;
+    uint8_t col;
+    uint32_t key_value;
+} key_position_t;
 
 static bool key_timer_callback(repeating_timer_t *rt);  ///< Timer callback for debouncing
 static repeating_timer_t debounce_timer;                ///< Timer for debouncing the button press
 
+// Interrupt Service Routine for keyboard PIO where key press is detected
 static void keyboard_isr_pio(void)                     
 {
     pio_sm_set_enabled(PIO, SM, false); // Disable the state machine
@@ -28,7 +35,67 @@ static void keyboard_isr_pio(void)
     pio_interrupt_clear(PIO, 0);
 }
 
-static inline void detection_keypad(uint32_t key, uint8_t *current_position,  char *password)
+bool validate_password(const char *input_password)
+{
+    for(uint8_t i = 0; i < MAX_PASSWORD_LENGTH; i++) {
+        if(input_password[i] != "123A"[i]) return false;
+    }
+    return true;
+}
+
+void decode_key(key_position_t * key)
+{
+    if(key->key_value & 0xF000){
+        key->row = 0;
+        if((key->key_value >> 12) & 0x01){
+            key->col = 0;
+        } else if((key->key_value >> 12) & 0x02){
+            key->col = 1;
+        } else if((key->key_value >> 12) & 0x04){
+            key->col = 2;
+        } else if((key->key_value >> 12) & 0x08){
+            key->col = 3;
+        }
+    } else if (key->key_value & 0x0F00){
+        key->row = 1;
+        if((key->key_value >> 8) & 0x01){
+            key->col = 0;
+        } else if((key->key_value >> 8) & 0x02){
+            key->col = 1;
+        } else if((key->key_value >> 8) & 0x04){
+            key->col = 2;
+        } else if((key->key_value >> 8) & 0x08){
+            key->col = 3;
+        }
+    } else if (key->key_value & 0x00F0){
+        key->row = 2;
+        if((key->key_value >> 4) & 0x01){
+            key->col = 0;
+        } else if((key->key_value >> 4) & 0x02){
+            key->col = 1;
+        } else if((key->key_value >> 4) & 0x04){
+            key->col = 2;
+        } else if((key->key_value >> 4) & 0x08){
+            key->col = 3;
+        }
+    }else if (key->key_value & 0x000F){
+        key->row = 3;
+        if((key->key_value >> 0) & 0x01){
+            key->col = 0;
+        } else if((key->key_value >> 0) & 0x02){
+            key->col = 1;
+        } else if((key->key_value >> 0) & 0x04){
+            key->col = 2;
+        } else if((key->key_value >> 0) & 0x08){
+            key->col = 3;
+        }
+    }else {
+        return; // No valid key detected
+    }
+}
+
+// Function to handle key detection and password input
+static inline void detection_keypad(uint32_t key_value, uint8_t *current_position,  char *password)
 {
     const char keymap[4][4] = {
         {'1', '2', '3', 'A'},
@@ -37,27 +104,31 @@ static inline void detection_keypad(uint32_t key, uint8_t *current_position,  ch
         {'*', '0', '#', 'D'}
     };
 
-    uint8_t row = (key >> 2);        // Extract row (bits 2 and 3)
-    uint8_t col = key & 0x03;        // Extract column (bits 0 and 1)
+    key_position_t key = {0,0, key_value};
 
-    if (*current_position < MAX_PASSWORD_LENGTH) {
-        password[*current_position] = keymap[row][col];
+    // Extract row and column from the key value
+    decode_key(&key);
+    
+    password[*current_position] = keymap[key.row][key.col];
+    if (*current_position < MAX_PASSWORD_LENGTH-1) {
         (*current_position)++;
+        play_melody('B'); // Play beep melody on key press
     }else {
+        // Play melody based on password validity
+        validate_password((const char *) password) ?  play_melody('C') :  play_melody('I'); 
         password[*current_position] = '\0'; // Null-terminate the string
-        *current_position = 0; // Reset for next input
+        *current_position = 0;              // Reset for next input
     }
 }
 
+// Timer callback for debouncing key press
 static bool key_timer_callback(repeating_timer_t *rt) {
     if(!(gpio_get(BASE_IN)|gpio_get(BASE_IN+1)|gpio_get(BASE_IN+2)|gpio_get(BASE_IN+3))) {
         if (!pio_sm_is_rx_fifo_empty(pio0, 0)) {
             uint32_t key = pio_sm_get(pio0, 0);
             static uint8_t current_position = 0;
             static char password [ MAX_PASSWORD_LENGTH ];
-
             detection_keypad(key, &current_position, password);
-            buzzer_beep();
         }
         pio_sm_set_enabled(PIO, SM, true); // Re-enable the state machine
         return false;  // stop timer
@@ -65,6 +136,7 @@ static bool key_timer_callback(repeating_timer_t *rt) {
     return true;  // hold timer
 }
 
+// Initialize the matrix keyboard PIO
 void matrix_keyboard_init_pio(void)
 {
     for (int i = 0; i < 4; i++){
