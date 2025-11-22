@@ -1,21 +1,23 @@
 .program buzzer_square
+.side_set 1 opt
 
-; pin 0 control buzzer
-; X contains delay cycles (for half of the period)
-.wrap_target
+    pull noblock    side 0 ; Pull from FIFO to OSR if available, else copy X to OSR.
+    mov x, osr             ; Copy most-recently-pulled value back to scratch X
+    mov y, isr             ; ISR contains PWM period. Y used as counter.
+countloop:
+    jmp x!=y noset         ; Set pin high if X == Y, keep the two paths length matched
+    jmp skip        side 1
+noset:
+    nop                    ; Single dummy cycle to keep the two paths the same length
+skip:
+    jmp y-- countloop      ; Loop until Y hits 0, then pull a fresh PWM value from FIFO
 
-pull
-mov x OSR
-mov y x
-loop:
-    set pins, 1
-delay_high:
-    jmp x-- delay_high
-    set pins, 0
-delay_low:
-    jmp y-- delay_low
-    jmp loop
-make_silence:
-    jmp make_silence
-
-.wrap
+% c-sdk {
+static inline void pwm_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_gpio_init(pio, pin);
+   pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+   pio_sm_config c = buzzer_square_program_get_default_config(offset);
+   sm_config_set_sideset_pins(&c, pin);
+   pio_sm_init(pio, sm, offset, &c);
+}
+%}
